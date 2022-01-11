@@ -8,11 +8,28 @@
 //
 // aeApiState 事件状态
 //
-typedef struct aeApiState {
+typedef struct aeApiState
+{
 	// epoll_event 实例描述符
 	int epfd;
 	// 事件槽
 	struct epoll_event *events; // epoll_events貌似是系统的一个结构
+
+	/**
+	 * @brief 
+	 * typedef union epoll_data {
+			void *ptr;
+			int fd;
+			__uint32_t u32;
+			__uint64_t u64;
+		} epoll_data_t;
+
+		struct epoll_event {
+			__uint32_t events; /* Epoll events /
+			epoll_data_t data; / User data variable /
+		};
+	 * 
+	 */
 
 } aeApiState;
 

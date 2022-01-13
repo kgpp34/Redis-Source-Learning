@@ -32,7 +32,7 @@ static void aeGetTime(long *seconds, long *milliseconds)
  * 初始化事件处理器状态，该函数是Redis进行监听各类时间的最上层函数
  */
 aeEventLoop *aeCreateEventLoop(int setsize)
-{ // 创建一个EventLoop,我只是稍微有那么点好奇,究竟这些个玩意到底是怎么实现的.
+{ // 创建一个EventLoop
 	// 其中这个setsize = redis.maxClients + REDIS_EVENTLOOP_FDSET_INCR
 	aeEventLoop *eventLoop;
 	int i;

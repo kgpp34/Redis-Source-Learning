@@ -404,6 +404,66 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask)
 	}
 }
 
+void addReply(redisClient *c, robj *obj)
+{
+
+	// 为客户端安装写处理器到事件循环
+	if (prepareClientToWrite(c) != REDIS_OK)
+		return;
+
+	/* This is an important place where we can avoid copy-on-write
+     * when there is a saving child running, avoiding touching the
+     * refcount field of the object if it's not needed.
+     *
+     * 如果在使用子进程，那么尽可能地避免修改对象的 refcount 域。
+     *
+     * If the encoding is RAW and there is room in the static buffer
+     * we'll be able to send the object to the client without
+     * messing with its page. 
+     *
+     * 如果对象的编码为 RAW ，并且静态缓冲区中有空间
+     * 那么就可以在不弄乱内存页的情况下，将对象发送给客户端。
+     */
+	if (sdsEncodedObject(obj))
+	{
+		// 首先尝试复制内容到 c->buf 中，这样可以避免内存分配
+		if (_addReplyToBuffer(c, obj->ptr, sdslen(obj->ptr)) != REDIS_OK)
+			// 如果 c->buf 中的空间不够，就复制到 c->reply 链表中
+			// 可能会引起内存分配
+			_addReplyObjectToList(c, obj);
+	}
+	else if (obj->encoding == REDIS_ENCODING_INT)
+	{
+		/* Optimization: if there is room in the static buffer for 32 bytes
+         * (more than the max chars a 64 bit integer can take as string) we
+         * avoid decoding the object and go for the lower level approach. */
+		// 优化，如果 c->buf 中有等于或多于 32 个字节的空间
+		// 那么将整数直接以字符串的形式复制到 c->buf 中
+		if (listLength(c->reply) == 0 && (sizeof(c->buf) - c->bufpos) >= 32)
+		{
+			char buf[32];
+			int len;
+
+			len = ll2string(buf, sizeof(buf), (long)obj->ptr);
+			if (_addReplyToBuffer(c, buf, len) == REDIS_OK)
+				return;
+			/* else... continue with the normal code path, but should never
+             * happen actually since we verified there is room. */
+		}
+		// 执行到这里，代表对象是整数，并且长度大于 32 位
+		// 将它转换为字符串
+		obj = getDecodedObject(obj);
+		// 保存到缓存中
+		if (_addReplyToBuffer(c, obj->ptr, sdslen(obj->ptr)) != REDIS_OK)
+			_addReplyObjectToList(c, obj);
+		decrRefCount(obj);
+	}
+	else
+	{
+		redisPanic("Wrong obj->encoding in addReply()");
+	}
+}
+
 int prepareClientToWrite(redisClient *c)
 {
 

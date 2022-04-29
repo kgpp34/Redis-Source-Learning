@@ -11,7 +11,7 @@ void *dupClientReplyValue(void *o);
 void decrRefCountVoid(void *o);
 
 /*
- * 如果在读入协议内容是,发现内容不符合协议,那么异步地关闭这个客户端 
+ * 如果在读入协议内容是,发现内容不符合协议,那么异步地关闭这个客户端
  */
 static void setProtocolError(redisClient *c, int pos)
 {
@@ -19,8 +19,8 @@ static void setProtocolError(redisClient *c, int pos)
 }
 
 /*
-* 创建一个新的客户端
-*/
+ * 创建一个新的客户端
+ */
 redisClient *createClient(int fd)
 {
 	redisClient *c = zmalloc(sizeof(redisClient));
@@ -282,6 +282,7 @@ void processInputBuffer(redisClient *c)
 		}
 		else if (c->reqtype == REDIS_REQ_MULTIBULK)
 		{
+			// 处理完成之后client -> argv 和 argc就不是空了
 			if (processMultibulkBuffer(c) != REDIS_OK)
 				break;
 		}
@@ -333,14 +334,14 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask)
 		}
 		else
 		{
-			//freeClient(c);
+			// freeClient(c);
 			return;
 		}
 	}
 	else if (nread == 0)
 	{ // 对方关闭了连接
 		// todo
-		//freeClient(c);
+		// freeClient(c);
 		return;
 	}
 
@@ -412,18 +413,18 @@ void addReply(redisClient *c, robj *obj)
 		return;
 
 	/* This is an important place where we can avoid copy-on-write
-     * when there is a saving child running, avoiding touching the
-     * refcount field of the object if it's not needed.
-     *
-     * 如果在使用子进程，那么尽可能地避免修改对象的 refcount 域。
-     *
-     * If the encoding is RAW and there is room in the static buffer
-     * we'll be able to send the object to the client without
-     * messing with its page. 
-     *
-     * 如果对象的编码为 RAW ，并且静态缓冲区中有空间
-     * 那么就可以在不弄乱内存页的情况下，将对象发送给客户端。
-     */
+	 * when there is a saving child running, avoiding touching the
+	 * refcount field of the object if it's not needed.
+	 *
+	 * 如果在使用子进程，那么尽可能地避免修改对象的 refcount 域。
+	 *
+	 * If the encoding is RAW and there is room in the static buffer
+	 * we'll be able to send the object to the client without
+	 * messing with its page.
+	 *
+	 * 如果对象的编码为 RAW ，并且静态缓冲区中有空间
+	 * 那么就可以在不弄乱内存页的情况下，将对象发送给客户端。
+	 */
 	if (sdsEncodedObject(obj))
 	{
 		// 首先尝试复制内容到 c->buf 中，这样可以避免内存分配
@@ -435,8 +436,8 @@ void addReply(redisClient *c, robj *obj)
 	else if (obj->encoding == REDIS_ENCODING_INT)
 	{
 		/* Optimization: if there is room in the static buffer for 32 bytes
-         * (more than the max chars a 64 bit integer can take as string) we
-         * avoid decoding the object and go for the lower level approach. */
+		 * (more than the max chars a 64 bit integer can take as string) we
+		 * avoid decoding the object and go for the lower level approach. */
 		// 优化，如果 c->buf 中有等于或多于 32 个字节的空间
 		// 那么将整数直接以字符串的形式复制到 c->buf 中
 		if (listLength(c->reply) == 0 && (sizeof(c->buf) - c->bufpos) >= 32)
@@ -448,7 +449,7 @@ void addReply(redisClient *c, robj *obj)
 			if (_addReplyToBuffer(c, buf, len) == REDIS_OK)
 				return;
 			/* else... continue with the normal code path, but should never
-             * happen actually since we verified there is room. */
+			 * happen actually since we verified there is room. */
 		}
 		// 执行到这里，代表对象是整数，并且长度大于 32 位
 		// 将它转换为字符串
@@ -527,7 +528,7 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask)
 			totwritten += nwritten;
 
 			/* If the buffer was sent, set bufpos to zero to continue with
-             * the remainder of the reply. */
+			 * the remainder of the reply. */
 			// 如果缓冲区中的内容已经全部写入完毕
 			// 那么清空客户端的两个计数器变量
 			if (c->sentlen == c->bufpos)
@@ -576,25 +577,25 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask)
 			}
 		}
 		/* Note that we avoid to send more than REDIS_MAX_WRITE_PER_EVENT
-         * bytes, in a single threaded server it's a good idea to serve
-         * other clients as well, even if a very large request comes from
-         * super fast link that is always able to accept data (in real world
-         * scenario think about 'KEYS *' against the loopback interface).
-         *
-         * 为了避免一个非常大的回复独占服务器，
-         * 当写入的总数量大于 REDIS_MAX_WRITE_PER_EVENT ，
-         * 临时中断写入，将处理时间让给其他客户端，
-         * 剩余的内容等下次写入就绪再继续写入
-         *
-         * However if we are over the maxmemory limit we ignore that and
-         * just deliver as much data as it is possible to deliver. 
-         *
-         * 不过，如果服务器的内存占用已经超过了限制，
-         * 那么为了将回复缓冲区中的内容尽快写入给客户端，
-         * 然后释放回复缓冲区的空间来回收内存，
-         * 这时即使写入量超过了 REDIS_MAX_WRITE_PER_EVENT ，
-         * 程序也继续进行写入
-         */
+		 * bytes, in a single threaded server it's a good idea to serve
+		 * other clients as well, even if a very large request comes from
+		 * super fast link that is always able to accept data (in real world
+		 * scenario think about 'KEYS *' against the loopback interface).
+		 *
+		 * 为了避免一个非常大的回复独占服务器，
+		 * 当写入的总数量大于 REDIS_MAX_WRITE_PER_EVENT ，
+		 * 临时中断写入，将处理时间让给其他客户端，
+		 * 剩余的内容等下次写入就绪再继续写入
+		 *
+		 * However if we are over the maxmemory limit we ignore that and
+		 * just deliver as much data as it is possible to deliver.
+		 *
+		 * 不过，如果服务器的内存占用已经超过了限制，
+		 * 那么为了将回复缓冲区中的内容尽快写入给客户端，
+		 * 然后释放回复缓冲区的空间来回收内存，
+		 * 这时即使写入量超过了 REDIS_MAX_WRITE_PER_EVENT ，
+		 * 程序也继续进行写入
+		 */
 		if (totwritten > REDIS_MAX_WRITE_PER_EVENT &&
 			(server.maxmemory == 0 ||
 			 zmalloc_used_memory() < server.maxmemory))
@@ -620,9 +621,9 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask)
 	if (totwritten > 0)
 	{
 		/* For clients representing masters we don't count sending data
-         * as an interaction, since we always send REPLCONF ACK commands
-         * that take some time to just fill the socket output buffer.
-         * We just rely on data / pings received for timeout detection. */
+		 * as an interaction, since we always send REPLCONF ACK commands
+		 * that take some time to just fill the socket output buffer.
+		 * We just rely on data / pings received for timeout detection. */
 		if (!(c->flags & REDIS_MASTER))
 			c->lastinteraction = server.unixtime;
 	}
